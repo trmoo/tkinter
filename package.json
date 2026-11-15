@@ -1,0 +1,22 @@
+{
+  "name": "tkinter-window-workshop",
+  "version": "1.0.0",
+  "description": "🪟 창문 공방 — 브라우저 안의 가짜 창으로 파이썬 tkinter(GUI 프로그래밍)를 익히는 학습 웹앱",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build && node tools/check-dist.mjs",
+    "preview": "vite preview",
+    "test": "node test/run.mjs",
+    "check:syntax": "node tools/check-syntax.mjs",
+    "golden": "node tools/run-py.mjs tools/golden.py",
+    "metrics": "node tools/run-py.mjs tools/metrics.py"
+  },
+  "devDependencies": {
+    "vite": "^8.3.5",
+    "vite-plugin-singlefile": "^2.3.4"
+  }
+}

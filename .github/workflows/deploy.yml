@@ -1,0 +1,84 @@
+# 🪟 창문 공방 — © 2026 티쳐무 · 모든 권리 보유
+# 푸시할 때마다 시험을 돌리고 빌드해 GitHub Pages 로 올린다. dist 는 커밋하지 않는다.
+# (저장소 Settings → Pages → Source 는 「GitHub Actions」. 「Deploy from a branch」 로 두면 흰 화면이 된다)
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      # 진짜 파이썬 3.12 · Tk 8.6 과 창 모습 · 출력 · 오류 문구를 대조한 기준(test/golden.json)을 함께 본다
+      # — 기준은 윈도 PC 에서 `npm run golden` 으로 만들어 두었으므로 여기서는 파이썬도 Tk 도 필요 없다
+      - name: 시험 (진짜 tkinter 대조 포함)
+        run: npm test
+
+      # 시험은 카드 파일(DOM 을 만지는 곳)을 부르지 않는다.
+      # 그래서 이 단계를 빼면 카드 파일의 문법 오류가 빌드에서야 터진다. 빼지 말 것.
+      - name: 소스 전수 검사
+        run: npm run check:syntax
+
+      # npm run build 가 끝에 tools/check-dist.mjs 로 크기·저작권(HTML 주석·배너 둘째 줄·화면 문구)·
+      # 바깥 자원(글꼴뿐)·해석기와 카드가 들었는지를 점검한다
+      - run: npm run build
+
+      # ⚠ 셸 변수 이름은 반드시 ASCII 로 쓴다. 한글로 쓰면 bash 가 command not found 로 죽는다.
+      - name: 빌드 결과 점검
+        run: |
+          FILE=dist/index.html
+          test -f "$FILE" || { echo "::error::$FILE 이 없습니다"; exit 1; }
+          SIZE=$(wc -c < "$FILE")
+          echo "빌드 크기: ${SIZE} 바이트"
+          if [ "$SIZE" -lt 300000 ]; then
+            echo "::error::빌드 결과가 너무 작습니다 (${SIZE} 바이트)."
+            exit 1
+          fi
+          COUNT=$(grep -o 티쳐무 "$FILE" | wc -l)
+          echo "저작권 표시: 티쳐무 ${COUNT}곳"
+          if [ "$COUNT" -lt 3 ]; then
+            echo "::error::저작권 표시가 사라졌습니다."
+            exit 1
+          fi
+          # ⚠ /*! 만 보면 CSS 머리 주석에 걸려 늘 통과한다 — 배너 둘째 줄로 본다(Vite 8 은 output.postBanner)
+          grep -qF ' * 학교 수업 목적으로만 이용해 주세요. 무단 배포·상업적 이용을 금합니다. */' "$FILE" || { echo "::error::스크립트 /*! 배너가 지워졌습니다 (vite.config.js 의 output.postBanner 확인)"; exit 1; }
+          echo "✅ 점검 통과"
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+        continue-on-error: true
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
